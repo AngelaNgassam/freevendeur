@@ -214,32 +214,24 @@ Si toutes les commandes retournent les résultats attendus, l'environnement est 
 
 ---
 
-## 8. Lancer les tests
-
-Les tests ne nécessitent pas de base MySQL : ils utilisent des mocks (faux repository).
-
-
-# Lancer tous les tests
-pytest -v
-
 # Résultat attendu :
 # tests/test_auth_service.py::TestAuthenticationService::test_tc01_connexion_reussie PASSED
 # tests/test_auth_service.py::TestAuthenticationService::test_tc02_echec_mot_de_passe PASSED
 # ...
 # 8 passed in X.XXs
-
+ 
 # Rapport de couverture de code
 pytest --cov=app --cov-report=term-missing
-
+ 
 # Rapport HTML (ouvrir htmlcov/index.html dans le navigateur)
 pytest --cov=app --cov-report=html
-
+ 
 # Arrêter au premier test échoué
 pytest -x
-
-
+```
+ 
 > **Taux de couverture cible : 80% minimum** sur le module `app/services/auth_service.py`.
-
+ 
 ---
 
 ## 9. Structure du projet
