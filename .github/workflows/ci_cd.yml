@@ -1,0 +1,124 @@
+# ============================================================
+# Pipeline CI/CD — Projet freeVendeur
+# Déclenchement : à chaque push et pull request sur main
+# Étapes : Lint (flake8) → Audit sécurité (bandit) → Tests (pytest)
+# ============================================================
+
+name: CI freeVendeur
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  # ──────────────────────────────────────────
+  # ÉTAPE 1 — Lint : vérification du style PEP8
+  # ──────────────────────────────────────────
+  lint:
+    name: Lint (flake8)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code source
+        uses: actions/checkout@v4
+
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer flake8
+        run: pip install flake8
+
+      - name: Vérifier le style PEP8
+        run: |
+          flake8 app/ tests/ \
+            --max-line-length=100 \
+            --exclude=__pycache__,.venv,venv \
+            --statistics
+        # --statistics : affiche le nombre de violations par règle
+        # --max-line-length=100 : tolérance un peu plus large que 79 (standard équipe)
+
+  # ──────────────────────────────────────────
+  # ÉTAPE 2 — Audit sécurité du code (bandit)
+  # ──────────────────────────────────────────
+  audit:
+    name: Audit sécurité (bandit)
+    runs-on: ubuntu-latest
+    needs: lint        # Ne s'exécute que si lint passe
+
+    steps:
+      - name: Récupérer le code source
+        uses: actions/checkout@v4
+
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer bandit
+        run: pip install bandit
+
+      - name: Analyser les vulnérabilités de sécurité
+        run: |
+          bandit -r app/ \
+            -ll \
+            --format txt
+        # -r app/   : analyse récursive du dossier app
+        # -ll       : signale uniquement les niveaux MEDIUM et HIGH (pas les LOW)
+        # Le pipeline échoue si une vulnérabilité MEDIUM ou HIGH est détectée
+
+  # ──────────────────────────────────────────
+  # ÉTAPE 3 — Tests automatisés (pytest)
+  # ──────────────────────────────────────────
+  tests:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    needs: audit       # Ne s'exécute que si audit passe
+
+    steps:
+      - name: Récupérer le code source
+        uses: actions/checkout@v4
+
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer les dépendances
+        run: |
+          pip install --upgrade pip
+          pip install bcrypt python-dotenv pytest pytest-cov mysql-connector-python
+
+      - name: Créer le fichier .env pour les tests
+        run: |
+          echo "DB_HOST=localhost" >> .env
+          echo "DB_USER=test_user" >> .env
+          echo "DB_PASSWORD=test_password" >> .env
+          echo "DB_NAME=freevendeur_test" >> .env
+        # Les tests utilisent des mocks donc ces valeurs ne sont pas utilisées
+        # mais python-dotenv a besoin que le fichier existe
+
+      - name: Lancer les tests avec couverture
+        run: |
+          pytest -v \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-fail-under=50
+        # --cov-fail-under=50 : le pipeline échoue si la couverture est < 70%
+
+      - name: Exporter le rapport de couverture HTML
+        if: always()    # Exporte même si les tests échouent
+        run: pytest --cov=app --cov-report=html
+
+      - name: Publier le rapport de couverture comme artefact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-couverture
+          path: htmlcov/
+          retention-days: 7
+          # Le rapport est téléchargeable 7 jours depuis l'onglet Actions de GitHub
